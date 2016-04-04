@@ -40,25 +40,6 @@ app.get('/todos', function(req, res) {
 	});
 
 
-	// var queryParams = req.query; //give me completed = true or false
-	// var filteredTodos = todos;
-
-	// if (queryParams.hasOwnProperty('completed') && (queryParams.completed === 'true')) {
-	// 	filteredTodos = _.where(filteredTodos, {
-	// 		completed: true
-	// 	});
-	// } else if (queryParams.hasOwnProperty('completed') && (queryParams.completed === 'false')) {
-	// 	filteredTodos = _.where(filteredTodos, {
-	// 		completed: false
-	// 	});
-	// }
-
-	// if (queryParams.hasOwnProperty('q') && queryParams.q.length > 0) {
-	// 	filteredTodos = _.filter(filteredTodos, function(todo) {
-	// 		return todo.description.toLowerCase().indexOf(queryParams.q.toLowerCase()) > -1;
-	// 	});
-	// }
-	// res.json(filteredTodos);
 });
 
 app.get('/todos/:id', function(req, res) {
@@ -74,24 +55,6 @@ app.get('/todos/:id', function(req, res) {
 	}, function(e) {
 		res.status(500).send();
 	});
-
-	// db.todo.findById(todoId).then(function(todo) {
-	// 	res.status(200).send(todo.toJSON());
-	// }).catch(function(e) {
-	// 	res.status(404).send(e);
-	// });
-
-
-	// var matchedTodo = _.findWhere(todos, {
-	// 	id: todoId
-	// });
-
-	// if (matchedTodo) {
-	// 	res.json(matchedTodo);
-	// } else {
-	// 	res.status(404).send();
-	// }
-
 });
 
 app.post('/todos', function(req, res) {
@@ -102,72 +65,54 @@ app.post('/todos', function(req, res) {
 	}, function(e) {
 		res.status(400).json(e);
 	});
-
-	// db.todo.create({
-	// 	description: body.description,
-	// 	completed: body.completed
-	// }).then(function() {
-	// 	res.status(200).json(body);
-
-	// }).catch(function(e) {
-	// 	res.status(400).json(e);
-	// });
-
-	//using underscore and array storage
-	// if ((!_.isBoolean(body.completed)) || (!_.isString(body.description) || (body.description.trim().length === 0))) {
-	// 	return res.status(400).send();
-	// }
-	// body.description = body.description.trim();
-	// body.id = todoNextId++;
-	// todos.push(body);
-	// console.log('description: ' + body.description);
-	// res.json(body);
 });
 
 app.delete('/todos/:id', function(req, res) {
-
 	var todoId = parseInt(req.params.id);
-	var matchedTodo = _.findWhere(todos, {
-		id: todoId
-	});
 
-	if (!matchedTodo) {
-		res.status(404).json({
-			"error": "no todo found with that id"
-		});
-	} else {
-		todos = _.without(todos, matchedTodo);
-		res.json(matchedTodo);
-	}
-
+	db.todo.destroy({
+		where: {
+			id: todoId
+		}
+	}).then(function(rowsDeleted) {
+		if (rowsDeleted === 0) {
+			res.status(404).json({
+				"error": "No todo with this id found"
+			})
+		} else {
+			res.status(204).send(); // all good but no data sent back
+		}
+	}, function(e) {
+		res.status(500).send();
+	})
 });
 
 app.put('/todos/:id', function(req, res) {
 	var todoId = parseInt(req.params.id);
-	var matchedTodo = _.findWhere(todos, {
-		id: todoId
-	});
 	var body = _.pick(req.body, 'description', 'completed');
-	var validAttributes = {};
+	var attributes = {};
 
-	if (!matchedTodo) {
-		return res.sendStatus(404).send();
+	if (body.hasOwnProperty('completed')) {
+		attributes.completed = body.completed;
 	}
 
-	if (body.hasOwnProperty('completed') && _.isBoolean(body.completed)) {
-		validAttributes.completed = body.completed;
-	} else if (body.hasOwnProperty('completed')) {
-		return res.status(400).send();
+	if (body.hasOwnProperty('description')) {
+		attributes.description = body.description;
 	}
 
-	if (body.hasOwnProperty('description') && _.isString(body.description) && body.description.trim().length > 0) {
-		validAttributes.description = body.description;
-	} else if (body.hasOwnProperty('description')) {
-		return res.status(400).send();
-	}
-
-	_.extend(matchedTodo, validAttributes);
-	res.json(matchedTodo);
+	db.todo.findById(todoId).then(function(todo) { //if findById goes well
+		if (todo) {
+			todo.update(attributes).then(function(todo) { //if update goes well
+				res.json(todo.toJSON()); //todo woth updated attributes
+			}, function(e) { //if update goes wrong
+				res.status(400).send();
+			});
+		} else {
+			res.status(404).send();
+		}
+	}, function() { //if findById goes wrong 
+		res.status(500).send();
+	});
 });
 
 db.sequelize.sync().then(function() {
